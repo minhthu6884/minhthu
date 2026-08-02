@@ -5,7 +5,6 @@ import DraggableBlock from "./DraggableBlock";
 import { HOURS } from "../lib/constants";
 
 function DroppableCell({ room, hour, blocksToRender, onOpenSettings }: any) {
-  // THỦ THUẬT: Chia đôi ô thành 2 mốc (00 phút và 30 phút)
   const { isOver: isOverTop, setNodeRef: setTopRef } = useDroppable({ id: `${room}|${hour}|0` });
   const { isOver: isOverBottom, setNodeRef: setBottomRef } = useDroppable({ id: `${room}|${hour}|30` });
   
@@ -14,7 +13,6 @@ function DroppableCell({ room, hour, blocksToRender, onOpenSettings }: any) {
   return (
     <td className={`relative border border-slate-300 min-w-[140px] h-[60px] p-0 align-top transition-colors ${isOver ? "bg-amber-100 outline-dashed outline-2 outline-amber-500 outline-offset-[-2px] z-20" : "bg-white"}`}>
       
-      {/* LƯỚI TÀNG HÌNH: Nửa trên (0 phút) - Nửa dưới (30 phút) */}
       <div ref={setTopRef} className="absolute top-0 w-full h-[30px] z-0" />
       <div ref={setBottomRef} className="absolute bottom-0 w-full h-[30px] z-0" />
       
@@ -23,7 +21,8 @@ function DroppableCell({ room, hour, blocksToRender, onOpenSettings }: any) {
   );
 }
 
-export default function GridCalendar({ bookings, rooms, setRooms, selectedDate, yesterdayStr, onOpenSettings, onRenameRoom, onRemoveRoom }: any) {
+// ĐÃ VÁ: Nhận 3 hàm Add, Rename, Remove từ page.tsx
+export default function GridCalendar({ bookings, rooms, onAddRoom, onRenameRoom, onRemoveRoom, selectedDate, yesterdayStr, onOpenSettings }: any) {
   const [roomAction, setRoomAction] = useState('add'); 
   const [targetRoom, setTargetRoom] = useState('');
   const [roomInput, setRoomInput] = useState("");
@@ -32,8 +31,7 @@ export default function GridCalendar({ bookings, rooms, setRooms, selectedDate, 
     e.preventDefault();
     if (roomAction === 'add') {
         if (!roomInput.trim()) return;
-        if (rooms.includes(roomInput.trim().toUpperCase())) return alert("Phòng đã tồn tại!");
-        setRooms([...rooms, roomInput.trim().toUpperCase()]);
+        onAddRoom(roomInput);
         setRoomInput("");
     } else if (roomAction === 'rename') {
         if (!targetRoom || !roomInput.trim()) return alert("Hãy chọn phòng và nhập tên mới!");
@@ -50,7 +48,6 @@ export default function GridCalendar({ bookings, rooms, setRooms, selectedDate, 
   return (
     <main className="flex-1 bg-[#eef2f6] flex flex-col relative overflow-hidden p-2">
       
-      {/* BẢNG ĐIỀU KHIỂN PHÒNG MỚI CHUYÊN NGHIỆP */}
       <div className="p-2 mb-2 border border-slate-200 rounded bg-white flex justify-between items-center shrink-0 shadow-sm overflow-x-auto">
         <div className="flex items-center gap-2 shrink-0"><Building size={16} className="text-slate-500" /><span className="text-sm font-bold text-slate-700">Lưới Lịch Excel</span></div>
         <form onSubmit={handleRoomSubmit} className="flex gap-2 items-center shrink-0 ml-4">

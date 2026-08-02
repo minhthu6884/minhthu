@@ -31,7 +31,7 @@ export default function Home() {
   const [activeBranch, setActiveBranch] = useState<any>(null);
 
   const [bookings, setBookings] = useState<any[]>([]);
-  const [rooms, setRooms] = useState<string[]>(INITIAL_ROOMS);
+  const [rooms, setRooms] = useState<string[]>([]);
   const [cashflow, setCashflow] = useState<any[]>([]);
   const [permissions, setPermissions] = useState(DEFAULT_PERMISSIONS);
   const [servicesList, setServicesList] = useState<any[]>([]);
@@ -47,6 +47,17 @@ export default function Home() {
          perms = newP;
       }
       setPermissions({ viewRevenue: perms.view_revenue, manageServices: perms.manage_services, manageRooms: perms.manage_rooms, manageCombos: perms.manage_combos, manageCashflow: perms.manage_cashflow, viewStats: perms.view_stats, deleteBooking: perms.delete_booking, editPrice: perms.edit_price });
+
+      // ĐÃ VÁ: TẢI DANH SÁCH PHÒNG TỪ BẢNG rooms TRÊN SUPABASE
+      const { data: rmData } = await supabase.from('rooms').select('*').eq('branch_id', branchId).order('id', { ascending: true });
+      if (rmData && rmData.length > 0) {
+         setRooms(rmData.map(r => r.name));
+      } else {
+         // Lần đầu khởi tạo chi nhánh sẽ tự động nạp phòng mặc định lên Cloud
+         const defaultRooms = INITIAL_ROOMS.map(name => ({ branch_id: branchId, name }));
+         await supabase.from('rooms').insert(defaultRooms);
+         setRooms(INITIAL_ROOMS);
+      }
 
       const { data: srvs } = await supabase.from('services').select('*').eq('branch_id', branchId);
       setServicesList(srvs || []);
@@ -166,12 +177,11 @@ export default function Home() {
       return;
     }
 
-    // TÍCH HỢP TỌA ĐỘ PHÚT TỪ GRID CALENDAR
     const [roomId, hourStr, minStr] = overId.split("|");
     if(!roomId || !hourStr) return;
     
     const droppedHour = parseInt(hourStr);
-    const droppedMinute = minStr ? parseInt(minStr) : 0; // Nếu thả ở nửa dưới, nó sẽ nhận 30.
+    const droppedMinute = minStr ? parseInt(minStr) : 0; 
     
     const draggedBooking = bookings.find(b => b.id === active.id);
     if (!draggedBooking) return;
@@ -179,11 +189,9 @@ export default function Home() {
     const roomBookings = bookings.filter(b => b.roomId === roomId && b.id !== active.id && b.startHour !== null);
     const [y, m, d] = selectedDate.split('-').map(Number);
     
-    // TÍNH TOÁN proposedStart BAO GỒM CẢ PHÚT
     let proposedStart = new Date(y, m - 1, d, droppedHour, droppedMinute, 0).getTime();
     const durationMs = draggedBooking.duration * 3600 * 1000;
 
-    // THUẬT TOÁN ĐẨY BLOCK TỰ ĐỘNG NẾU BỊ TRÙNG (SNAP)
     let isSnapping = true;
     while(isSnapping) {
        const overlapping = roomBookings.find(b => {
@@ -228,9 +236,27 @@ export default function Home() {
   const handleCloseBookingModal = () => setSelectedBookingId(null);
   const handleCloseManagementModal = () => setActiveManagementTab(null);
 
+  // ĐÃ VÁ: HÀM THÊM PHÒNG (Đẩy lên Cloud)
+  const handleAddRoom = async (roomName: string) => {
+    const upperNew = roomName.trim().toUpperCase();
+    if (rooms.includes(upperNew)) return alert("Tên phòng này đã tồn tại!");
+    
+    const branchId = activeBranch?.id || activeBranch;
+    if (branchId) {
+       await supabase.from('rooms').insert([{ branch_id: branchId, name: upperNew }]);
+    }
+    setRooms(prev => [...prev, upperNew]);
+  };
+
+  // ĐÃ VÁ: HÀM ĐỔI TÊN PHÒNG (Sửa trên Cloud)
   const handleRenameRoom = async (oldName: string, newName: string) => {
     const upperNew = newName.trim().toUpperCase();
     if (rooms.includes(upperNew)) return alert("Tên phòng này đã tồn tại!");
+    
+    const branchId = activeBranch?.id || activeBranch;
+    if (branchId) {
+        await supabase.from('rooms').update({ name: upperNew }).match({ branch_id: branchId, name: oldName });
+    }
     
     setRooms(prev => prev.map(r => r === oldName ? upperNew : r));
     setBookings(prev => prev.map(b => b.roomId === oldName ? { ...b, roomId: upperNew } : b));
@@ -241,8 +267,13 @@ export default function Home() {
     }
   };
 
-  const handleRemoveRoom = (roomName: string) => {
+  // ĐÃ VÁ: HÀM XÓA PHÒNG (Xóa khỏi Cloud)
+  const handleRemoveRoom = async (roomName: string) => {
     if (confirm(`Xác nhận Xóa phòng [${roomName}] khỏi danh sách? (Các hóa đơn cũ vẫn sẽ được giữ)`)) {
+        const branchId = activeBranch?.id || activeBranch;
+        if (branchId) {
+           await supabase.from('rooms').delete().match({ branch_id: branchId, name: roomName });
+        }
         setRooms(prev => prev.filter(r => r !== roomName));
     }
   };
@@ -390,12 +421,12 @@ export default function Home() {
           <GridCalendar 
             bookings={bookings} 
             rooms={rooms} 
-            setRooms={setRooms} 
+            onAddRoom={handleAddRoom}
+            onRenameRoom={handleRenameRoom}
+            onRemoveRoom={handleRemoveRoom}
             selectedDate={selectedDate} 
             yesterdayStr={yesterdayStr} 
             onOpenSettings={setSelectedBookingId} 
-            onRenameRoom={handleRenameRoom}
-            onRemoveRoom={handleRemoveRoom}
           />
         </div>
         
