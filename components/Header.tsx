@@ -10,7 +10,6 @@ export default function Header({ bookings, role, activeBranch, permissions, onLo
     return Math.max(0, final + (b.surcharge || 0) + surAmt - (b.discount || 0) - discAmt);
   };
 
-  // CẬP NHẬT: Chỉ cộng tiền vào thanh Header nếu khách ĐÃ CHECK-OUT
   const totalCash = bookings.reduce((sum: number, b: any) => {
     if (b.status === 'checkout' && b.paymentStatus === 'paid') {
       return sum + (b.cashAmount || 0);
@@ -25,10 +24,8 @@ export default function Header({ bookings, role, activeBranch, permissions, onLo
     return sum;
   }, 0);
 
-  // LOGIC CHE DOANH THU NẾU LỄ TÂN KHÔNG CÓ QUYỀN
   const canViewRevenue = role !== 'reception' || permissions?.viewRevenue;
 
-  // XỬ LÝ TÊN CHI NHÁNH HIỂN THỊ CHUẨN XÁC
   let displayBranchName = "ĐANG TẢI...";
   if (role === 'super_admin' && !activeBranch) {
      displayBranchName = "TẤT CẢ CHI NHÁNH";
@@ -58,7 +55,8 @@ export default function Header({ bookings, role, activeBranch, permissions, onLo
           </span>
         </div>
 
-        <button onClick={onLogout} className="ml-1 p-2 bg-rose-500/20 text-rose-300 rounded hover:bg-rose-500 hover:text-white transition shadow-sm flex items-center gap-1.5 text-xs font-bold shrink-0">
+        {/* THÊM TYPE="BUTTON" ĐỂ CHỐNG LỖI SUBMIT */}
+        <button type="button" onClick={onLogout} className="ml-1 p-2 bg-rose-500/20 text-rose-300 rounded hover:bg-rose-500 hover:text-white transition shadow-sm flex items-center gap-1.5 text-xs font-bold shrink-0">
            <LogOut size={14}/> Thoát
         </button>
       </div>

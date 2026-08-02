@@ -4,34 +4,76 @@ import { useDroppable } from "@dnd-kit/core";
 import DraggableBlock from "./DraggableBlock";
 import { HOURS } from "../lib/constants";
 
-function DroppableCell({ id, blocksToRender, onOpenSettings }: any) {
-  const { isOver, setNodeRef } = useDroppable({ id });
+function DroppableCell({ room, hour, blocksToRender, onOpenSettings }: any) {
+  // THỦ THUẬT: Chia đôi ô thành 2 mốc (00 phút và 30 phút)
+  const { isOver: isOverTop, setNodeRef: setTopRef } = useDroppable({ id: `${room}|${hour}|0` });
+  const { isOver: isOverBottom, setNodeRef: setBottomRef } = useDroppable({ id: `${room}|${hour}|30` });
+  
+  const isOver = isOverTop || isOverBottom;
+
   return (
-    // Đã thay đổi h-[29px] thành h-[60px]
-    <td ref={setNodeRef} className={`relative border border-slate-300 min-w-[140px] h-[60px] p-0 align-top transition-colors ${isOver ? "bg-amber-100 outline-dashed outline-2 outline-amber-500 outline-offset-[-2px] z-20" : "bg-white"}`}>
+    <td className={`relative border border-slate-300 min-w-[140px] h-[60px] p-0 align-top transition-colors ${isOver ? "bg-amber-100 outline-dashed outline-2 outline-amber-500 outline-offset-[-2px] z-20" : "bg-white"}`}>
+      
+      {/* LƯỚI TÀNG HÌNH: Nửa trên (0 phút) - Nửa dưới (30 phút) */}
+      <div ref={setTopRef} className="absolute top-0 w-full h-[30px] z-0" />
+      <div ref={setBottomRef} className="absolute bottom-0 w-full h-[30px] z-0" />
+      
       {blocksToRender.map((block: any) => <DraggableBlock key={`${block.id}-${block.isCarryOver ? 'tail' : 'head'}`} booking={block} displayDuration={block.displayDuration} isCarryOver={block.isCarryOver} onOpenSettings={onOpenSettings} />)}
     </td>
   );
 }
 
-export default function GridCalendar({ bookings, rooms, setRooms, selectedDate, yesterdayStr, onOpenSettings }: any) {
-  const [newRoom, setNewRoom] = useState("");
+export default function GridCalendar({ bookings, rooms, setRooms, selectedDate, yesterdayStr, onOpenSettings, onRenameRoom, onRemoveRoom }: any) {
+  const [roomAction, setRoomAction] = useState('add'); 
+  const [targetRoom, setTargetRoom] = useState('');
+  const [roomInput, setRoomInput] = useState("");
 
-  const handleAddRoom = (e: React.FormEvent) => {
+  const handleRoomSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newRoom.trim()) return;
-    if (rooms.includes(newRoom.trim().toUpperCase())) return alert("Phòng đã tồn tại!");
-    setRooms([...rooms, newRoom.trim().toUpperCase()]);
-    setNewRoom("");
+    if (roomAction === 'add') {
+        if (!roomInput.trim()) return;
+        if (rooms.includes(roomInput.trim().toUpperCase())) return alert("Phòng đã tồn tại!");
+        setRooms([...rooms, roomInput.trim().toUpperCase()]);
+        setRoomInput("");
+    } else if (roomAction === 'rename') {
+        if (!targetRoom || !roomInput.trim()) return alert("Hãy chọn phòng và nhập tên mới!");
+        onRenameRoom(targetRoom, roomInput);
+        setRoomInput("");
+        setTargetRoom("");
+    } else if (roomAction === 'delete') {
+        if (!targetRoom) return alert("Vui lòng chọn phòng cần xóa!");
+        onRemoveRoom(targetRoom);
+        setTargetRoom("");
+    }
   };
 
   return (
     <main className="flex-1 bg-[#eef2f6] flex flex-col relative overflow-hidden p-2">
-      <div className="p-2 mb-2 border border-slate-200 rounded bg-white flex justify-between items-center shrink-0 shadow-sm">
-        <div className="flex items-center gap-2"><Building size={16} className="text-slate-500" /><span className="text-sm font-bold text-slate-700">Lưới Lịch Excel</span></div>
-        <form onSubmit={handleAddRoom} className="flex gap-1">
-          <input type="text" value={newRoom} onChange={(e) => setNewRoom(e.target.value)} placeholder="Tên phòng..." className="px-2 py-1 border border-slate-300 rounded text-xs w-28 focus:outline-none focus:border-emerald-500"/>
-          <button type="submit" className="bg-slate-800 text-white px-2 py-1 rounded text-xs font-medium">Thêm</button>
+      
+      {/* BẢNG ĐIỀU KHIỂN PHÒNG MỚI CHUYÊN NGHIỆP */}
+      <div className="p-2 mb-2 border border-slate-200 rounded bg-white flex justify-between items-center shrink-0 shadow-sm overflow-x-auto">
+        <div className="flex items-center gap-2 shrink-0"><Building size={16} className="text-slate-500" /><span className="text-sm font-bold text-slate-700">Lưới Lịch Excel</span></div>
+        <form onSubmit={handleRoomSubmit} className="flex gap-2 items-center shrink-0 ml-4">
+          <select value={roomAction} onChange={(e) => { setRoomAction(e.target.value); setRoomInput(""); setTargetRoom(""); }} className="px-2 py-1.5 border border-slate-300 rounded text-xs font-bold text-slate-700 focus:outline-none">
+             <option value="add">➕ Thêm Phòng Mới</option>
+             <option value="rename">✏️ Đổi Tên Phòng</option>
+             <option value="delete">🗑️ Xóa Phòng</option>
+          </select>
+          
+          {roomAction !== 'add' && (
+            <select value={targetRoom} onChange={(e) => setTargetRoom(e.target.value)} className="px-2 py-1.5 border border-slate-300 rounded text-xs font-bold focus:outline-none w-32">
+               <option value="">Chọn phòng...</option>
+               {rooms.map((r: string) => <option key={r} value={r}>{r}</option>)}
+            </select>
+          )}
+
+          {roomAction !== 'delete' && (
+             <input type="text" value={roomInput} onChange={(e) => setRoomInput(e.target.value)} placeholder={roomAction === 'add' ? "Nhập tên phòng mới..." : "Nhập tên muốn đổi..."} className="px-2 py-1.5 border border-slate-300 rounded text-xs w-36 focus:outline-none focus:border-emerald-500 font-bold"/>
+          )}
+          
+          <button type="submit" className={`px-3 py-1.5 rounded text-xs font-bold text-white shadow-sm transition ${roomAction === 'delete' ? 'bg-rose-600 hover:bg-rose-700' : 'bg-slate-800 hover:bg-slate-900'}`}>
+             {roomAction === 'add' ? 'Thêm' : roomAction === 'rename' ? 'Cập Nhật' : 'Xóa Bỏ'}
+          </button>
         </form>
       </div>
 
@@ -41,9 +83,8 @@ export default function GridCalendar({ bookings, rooms, setRooms, selectedDate, 
             <tr>
               <th className="sticky left-0 z-50 bg-yellow-400 border border-slate-400 w-[60px] h-[35px] text-[11px] text-slate-800">GIỜ</th>
               {rooms.map((room: string) => (
-                <th key={room} className="group relative border border-slate-400 w-[140px] h-[35px] font-black text-slate-800 text-xs">
+                <th key={room} className="relative border border-slate-400 w-[140px] h-[35px] font-black text-slate-800 text-xs">
                   {room}
-                  <button onClick={() => setRooms(rooms.filter((r:string) => r !== room))} className="absolute right-1 top-1 opacity-0 group-hover:opacity-100 text-rose-600 hover:bg-rose-100 p-0.5 rounded transition-all"><X size={14} strokeWidth={3} /></button>
                 </th>
               ))}
             </tr>
@@ -51,7 +92,6 @@ export default function GridCalendar({ bookings, rooms, setRooms, selectedDate, 
           <tbody>
             {HOURS.map((hour) => (
               <tr key={hour}>
-                {/* Đã thay đổi h-[29px] thành h-[60px] */}
                 <td className="sticky left-0 z-30 bg-yellow-100/80 border border-slate-400 font-bold text-center align-middle text-slate-700 text-[11px] h-[60px] leading-none">
                   {hour} - {hour + 1}
                 </td>
@@ -75,7 +115,7 @@ export default function GridCalendar({ bookings, rooms, setRooms, selectedDate, 
                       }
                     }
                   });
-                  return <DroppableCell key={cellId} id={cellId} blocksToRender={blocksToRender} onOpenSettings={onOpenSettings} />;
+                  return <DroppableCell key={cellId} room={room} hour={hour} blocksToRender={blocksToRender} onOpenSettings={onOpenSettings} />;
                 })}
               </tr>
             ))}

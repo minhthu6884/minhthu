@@ -2,18 +2,23 @@ import { ChevronLeft, ChevronRight, Home } from "lucide-react";
 
 export default function DateBar({ datesBar, selectedDate, setSelectedDate, viewStartDate, setViewStartDate }: any) {
   
+  // HÀM HỖ TRỢ: Ép trình duyệt lấy đúng ngày địa phương (GMT+7) thay vì UTC
+  const getLocalDateStr = (d: Date) => {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+
   // Lùi 7 ngày
   const handlePrev = () => {
     const d = new Date(viewStartDate);
     d.setDate(d.getDate() - 7);
-    setViewStartDate(d.toISOString().split('T')[0]);
+    setViewStartDate(getLocalDateStr(d));
   };
 
   // Tiến 7 ngày
   const handleNext = () => {
     const d = new Date(viewStartDate);
     d.setDate(d.getDate() + 7);
-    setViewStartDate(d.toISOString().split('T')[0]);
+    setViewStartDate(getLocalDateStr(d));
   };
 
   // Khi người dùng chọn ngày từ bộ lịch, nó sẽ tự động nhảy đến ngày đó luôn
@@ -25,9 +30,9 @@ export default function DateBar({ datesBar, selectedDate, setSelectedDate, viewS
     }
   };
 
-  // Trở về ngày hôm nay
+  // Trở về ngày hôm nay (Lấy đúng giờ Việt Nam)
   const handleGoToday = () => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getLocalDateStr(new Date());
     setViewStartDate(today);
     setSelectedDate(today);
   };
