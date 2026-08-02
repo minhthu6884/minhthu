@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { DndContext, DragEndEvent } from "@dnd-kit/core";
 import { ShieldCheck, User, Lock, KeyRound, LogIn, UserPlus, Building, Loader2 } from "lucide-react";
 import Header from "../components/Header";
@@ -25,6 +25,7 @@ export default function Home() {
   const [authError, setAuthError] = useState('');
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [isFetchingData, setIsFetchingData] = useState(false); 
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
 
   const [cloudBranches, setCloudBranches] = useState<string[]>([]);
   const [role, setRole] = useState<'super_admin' | 'admin' | 'reception'>('super_admin');
@@ -48,7 +49,6 @@ export default function Home() {
       }
       setPermissions({ viewRevenue: perms.view_revenue, manageServices: perms.manage_services, manageRooms: perms.manage_rooms, manageCombos: perms.manage_combos, manageCashflow: perms.manage_cashflow, viewStats: perms.view_stats, deleteBooking: perms.delete_booking, editPrice: perms.edit_price });
 
-      // CƠ CHẾ BÁO LỖI: TẢI PHÒNG TỪ BẢNG rooms
       const { data: rmData, error: rmError } = await supabase.from('rooms').select('*').eq('branch_id', branchId).order('id', { ascending: true });
       
       if (rmError) {
@@ -107,6 +107,44 @@ export default function Home() {
     setAuthStep('app');
   };
 
+  useEffect(() => {
+    const checkSession = async () => {
+      const savedSession = localStorage.getItem('hotel_session');
+      if (savedSession) {
+        try {
+          const session = JSON.parse(savedSession);
+          setUsername(session.username);
+          setRole(session.role);
+
+          if (session.role === 'super_admin') {
+             const { data: bData } = await supabase.from('users').select('branch_id').not('branch_id', 'is', null);
+             if (bData) setCloudBranches(Array.from(new Set(bData.map((b: any) => b.branch_id))) as string[]);
+             
+             const savedActiveBranch = localStorage.getItem('hotel_active_branch');
+             if (savedActiveBranch) {
+                const branch = JSON.parse(savedActiveBranch);
+                setActiveBranch(branch);
+                await loadBranchData(branch.id);
+             } else {
+                setAuthStep('branch');
+             }
+          } else {
+             // ĐÃ FIX: Chắc chắn lấy đúng branch_id từ session
+             setActiveBranch({ id: session.branch_id, name: session.branch_id });
+             await loadBranchData(session.branch_id);
+          }
+        } catch (err) {
+          console.error("Lỗi khôi phục phiên đăng nhập:", err);
+          localStorage.removeItem('hotel_session');
+          localStorage.removeItem('hotel_active_branch');
+        }
+      }
+      setIsCheckingSession(false);
+    };
+    
+    checkSession();
+  }, []);
+
   const handleAuthSubmit = async (e?: any) => {
     if (e && e.preventDefault) e.preventDefault();
     
@@ -126,9 +164,13 @@ export default function Home() {
       if (error || !user) { setIsAuthenticating(false); return setAuthError('Sai thông tin!'); }
       
       setRole(user.role);
+      
+      // ĐÃ FIX: Bắt buộc lưu branch_id vào LocalStorage
+      localStorage.setItem('hotel_session', JSON.stringify({ username: user.username, role: user.role, branch_id: user.branch_id }));
+
       if (user.role === 'super_admin') {
          const { data: bData } = await supabase.from('users').select('branch_id').not('branch_id', 'is', null);
-         if (bData) setCloudBranches(Array.from(new Set(bData.map(b => b.branch_id))) as string[]);
+         if (bData) setCloudBranches(Array.from(new Set(bData.map((b: any) => b.branch_id))) as string[]);
          setAuthStep('branch');
       } else {
          setActiveBranch({ id: user.branch_id, name: user.branch_id }); 
@@ -283,6 +325,15 @@ export default function Home() {
     }
   };
 
+  if (isCheckingSession) {
+     return (
+        <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4">
+          <Loader2 size={48} className="text-emerald-500 animate-spin mb-4" />
+          <p className="text-white font-black tracking-widest uppercase">Đang tải phiên làm việc...</p>
+        </div>
+     );
+  }
+
   if (authStep === 'login') {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 font-sans relative overflow-hidden">
@@ -375,7 +426,12 @@ export default function Home() {
           <h2 className="text-xl font-black mb-6">CHỌN CHI NHÁNH</h2>
           <div className="w-full space-y-3 max-h-60 overflow-y-auto">
              {cloudBranches.map(b => (
-               <button key={b} onClick={() => { setActiveBranch({ id: b, name: b }); loadBranchData(b); }} className="w-full p-4 border-2 bg-slate-50 hover:bg-purple-50 hover:border-purple-300 rounded-xl font-black flex items-center gap-3">
+               <button key={b} onClick={() => { 
+                   const branchObj = { id: b, name: b };
+                   setActiveBranch(branchObj); 
+                   localStorage.setItem('hotel_active_branch', JSON.stringify(branchObj));
+                   loadBranchData(b); 
+               }} className="w-full p-4 border-2 bg-slate-50 hover:bg-purple-50 hover:border-purple-300 rounded-xl font-black flex items-center gap-3">
                  <span className="text-2xl">🏢</span> {b}
                </button>
              ))}
