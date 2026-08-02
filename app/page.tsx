@@ -48,14 +48,19 @@ export default function Home() {
       }
       setPermissions({ viewRevenue: perms.view_revenue, manageServices: perms.manage_services, manageRooms: perms.manage_rooms, manageCombos: perms.manage_combos, manageCashflow: perms.manage_cashflow, viewStats: perms.view_stats, deleteBooking: perms.delete_booking, editPrice: perms.edit_price });
 
-      // ĐÃ VÁ: TẢI DANH SÁCH PHÒNG TỪ BẢNG rooms TRÊN SUPABASE
-      const { data: rmData } = await supabase.from('rooms').select('*').eq('branch_id', branchId).order('id', { ascending: true });
-      if (rmData && rmData.length > 0) {
+      // CƠ CHẾ BÁO LỖI: TẢI PHÒNG TỪ BẢNG rooms
+      const { data: rmData, error: rmError } = await supabase.from('rooms').select('*').eq('branch_id', branchId).order('id', { ascending: true });
+      
+      if (rmError) {
+          console.error("LỖI SUPABASE:", rmError);
+          alert("🚨 KHÔNG TÌM THẤY BẢNG 'rooms' TRÊN SUPABASE!\n\nLỗi: " + rmError.message + "\nGiám đốc hãy vào Supabase tạo bảng 'rooms' ngay nhé!");
+          setRooms(INITIAL_ROOMS);
+      } else if (rmData && rmData.length > 0) {
          setRooms(rmData.map(r => r.name));
       } else {
-         // Lần đầu khởi tạo chi nhánh sẽ tự động nạp phòng mặc định lên Cloud
          const defaultRooms = INITIAL_ROOMS.map(name => ({ branch_id: branchId, name }));
-         await supabase.from('rooms').insert(defaultRooms);
+         const { error: insertErr } = await supabase.from('rooms').insert(defaultRooms);
+         if (insertErr) alert("🚨 Lỗi tạo phòng mặc định: " + insertErr.message);
          setRooms(INITIAL_ROOMS);
       }
 
@@ -236,26 +241,26 @@ export default function Home() {
   const handleCloseBookingModal = () => setSelectedBookingId(null);
   const handleCloseManagementModal = () => setActiveManagementTab(null);
 
-  // ĐÃ VÁ: HÀM THÊM PHÒNG (Đẩy lên Cloud)
   const handleAddRoom = async (roomName: string) => {
     const upperNew = roomName.trim().toUpperCase();
     if (rooms.includes(upperNew)) return alert("Tên phòng này đã tồn tại!");
     
     const branchId = activeBranch?.id || activeBranch;
     if (branchId) {
-       await supabase.from('rooms').insert([{ branch_id: branchId, name: upperNew }]);
+       const { error } = await supabase.from('rooms').insert([{ branch_id: branchId, name: upperNew }]);
+       if (error) return alert("🚨 LỖI LƯU PHÒNG TRÊN SUPABASE: " + error.message);
     }
     setRooms(prev => [...prev, upperNew]);
   };
 
-  // ĐÃ VÁ: HÀM ĐỔI TÊN PHÒNG (Sửa trên Cloud)
   const handleRenameRoom = async (oldName: string, newName: string) => {
     const upperNew = newName.trim().toUpperCase();
     if (rooms.includes(upperNew)) return alert("Tên phòng này đã tồn tại!");
     
     const branchId = activeBranch?.id || activeBranch;
     if (branchId) {
-        await supabase.from('rooms').update({ name: upperNew }).match({ branch_id: branchId, name: oldName });
+        const { error } = await supabase.from('rooms').update({ name: upperNew }).match({ branch_id: branchId, name: oldName });
+        if (error) return alert("🚨 LỖI ĐỔI TÊN PHÒNG: " + error.message);
     }
     
     setRooms(prev => prev.map(r => r === oldName ? upperNew : r));
@@ -267,12 +272,12 @@ export default function Home() {
     }
   };
 
-  // ĐÃ VÁ: HÀM XÓA PHÒNG (Xóa khỏi Cloud)
   const handleRemoveRoom = async (roomName: string) => {
     if (confirm(`Xác nhận Xóa phòng [${roomName}] khỏi danh sách? (Các hóa đơn cũ vẫn sẽ được giữ)`)) {
         const branchId = activeBranch?.id || activeBranch;
         if (branchId) {
-           await supabase.from('rooms').delete().match({ branch_id: branchId, name: roomName });
+           const { error } = await supabase.from('rooms').delete().match({ branch_id: branchId, name: roomName });
+           if (error) return alert("🚨 LỖI XÓA PHÒNG: " + error.message);
         }
         setRooms(prev => prev.filter(r => r !== roomName));
     }
